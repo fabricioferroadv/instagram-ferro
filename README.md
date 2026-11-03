@@ -54,33 +54,41 @@ pouco. Conte com o post saindo **até ~20 min depois** do horário marcado.
    **Conta profissional** (Empresa ou Criador de conteúdo).
 2. **Página do Facebook** da Ferro Advocacia, **vinculada** ao Instagram
    (Configurações da Página → Contas vinculadas → Instagram).
-3. Em <https://developers.facebook.com> → **Meus apps** → **Criar app** → tipo
-   **Empresa (Business)**. Anote o **ID do app** e a **Chave secreta**
-   (Configurações do app → Básico).
-4. No app, adicione o produto **Instagram** (API com login do Facebook).
-5. **Política de privacidade**: a Meta exige uma URL estável (Configurações →
-   Básico). Use uma página do seu site. Não use link de artifact do claude.ai.
+3. Em <https://developers.facebook.com> → **Meus apps** → **Criar app**:
+   nome `Ferro Publicador`, caso de uso **"Gerenciar mensagens e conteúdo no
+   Instagram"**, sem portfólio na criação.
+4. No app → **Casos de uso → Personalizar**: conectar o portfólio
+   **"Fabricio Ferro"** (exigido pela "API setup with Unified login") e criar a
+   configuração pelo modelo (token de usuário do sistema, nunca expira).
+5. **Funções do app → Testador do Instagram** → `fabricio.ferro.adv` e aceitar o
+   convite no Instagram (Configurações → Permissões do site do app → Apps e
+   sites → Convites do testador).
 
+Feito em 03/11/2026 — app **Ferro Publicador**, ID `1654629516319767`.
 Não precisa de App Review nem de verificação de empresa: o app só publica na sua
 própria conta.
 
-### Passo 2 — Token que não vence
+### Passo 2 — Token que não vence (usuário do sistema)
 
-1. Abra o **Explorador da Graph API**: <https://developers.facebook.com/tools/explorer>.
-2. Escolha o seu app e marque **só** estas permissões:
-   `instagram_basic`, `instagram_content_publish`, `instagram_manage_insights`,
-   `pages_show_list`, `pages_read_engagement`.
-   (Não marque mensagens nem comentários: não usamos, e é dado pessoal — LGPD.)
-3. **Generate Access Token** → autorize → copie o token (é o "curto", vale 1 h).
-4. Troque pelo token longo. No próprio Explorador, faça um GET em:
-   `oauth/access_token?grant_type=fb_exchange_token&client_id=ID_DO_APP&client_secret=CHAVE_SECRETA&fb_exchange_token=TOKEN_CURTO`
-5. Com o token longo, descubra o ID da Página: `me/accounts` (se vier vazio,
-   pegue o ID na página do Facebook → Sobre → Transparência).
-6. Pegue o **token de Página** (este não vence):
-   `ID_DA_PAGINA?fields=access_token,instagram_business_account`
-   Anote o `access_token` e o `instagram_business_account.id` (é o **IG_ACCOUNT_ID**).
-7. Confira em <https://developers.facebook.com/tools/debug/accesstoken>:
-   deve mostrar **Tipo: Page** e **Expira: Nunca**.
+O botão "Adicionar conta" do painel de desenvolvedores falhou; este caminho
+funcionou:
+
+1. <https://business.facebook.com/settings> → portfólio **Fabricio Ferro**.
+2. **Usuários → Usuários do sistema → Adicionar**: nome `publicador`, função
+   **Funcionário** (Employee).
+3. Atribuir ao `publicador`, com **controle total**:
+   - **Contas → Páginas → Ferro Advocacia & Consultoria Jurídica → Atribuir pessoas**
+   - **Contas → Perfis do Instagram → @fabricio.ferro.adv → Atribuir pessoas**
+   - **Contas → Apps → Ferro Publicador → Atribuir pessoas**
+4. No app (developers.facebook.com) → **Casos de uso → Personalizar → Permissões
+   e recursos**: clicar em **Adicionar** em `instagram_basic` e
+   `instagram_content_publish`. Sem isso a lista de permissões do token vem vazia.
+5. **Usuários do sistema → publicador → Gerar token**: app Ferro Publicador,
+   expiração **Nunca**, permissões `instagram_basic` + `instagram_content_publish`
+   (+ `pages_read_engagement`, se liberada). A Meta mostra o token uma vez só.
+6. **IG_ACCOUNT_ID** = `17841411125081467` (Contas → Perfis do Instagram).
+
+**Não usar o "Conversions API System User"** — é dos pixels do site.
 
 > ⚠️ O token dá poder de publicar no seu perfil. **Não cole no chat** nem em
 > arquivo. Ele vai direto para o cofre do GitHub no passo 3.
@@ -105,13 +113,13 @@ gh secret set IG_ACCESS_TOKEN
 (cola o token de Página quando pedir — não aparece na tela)
 
 ```bash
-gh variable set IG_ACCOUNT_ID --body "ID_DA_CONTA_INSTAGRAM"
+gh variable set IG_ACCOUNT_ID --body "17841411125081467"
 ```
 
 Opcional, para a conferência semanal usar o token do app:
 
 ```bash
-gh variable set FB_APP_ID --body "ID_DO_APP"
+gh variable set FB_APP_ID --body "1654629516319767"
 ```
 
 ```bash
@@ -138,9 +146,13 @@ gh secret set FB_APP_SECRET
 
 ## Manutenção
 
-- **Prazo de acesso da Meta** (`data_access_expires_at`, ~90 dias): o aviso chega
-  por e-mail 21 dias antes. Para renovar, repita o **Passo 2** (itens 1 a 6) e
-  rode `gh secret set IG_ACCESS_TOKEN` com o token novo.
+- **Token:** o do usuário do sistema não expira. Se a conferência semanal acusar
+  problema (token inválido ou prazo de acesso perto do fim), gere outro em
+  **Usuários do sistema → publicador → Gerar token** (Passo 2, item 5) e rode
+  `gh secret set IG_ACCESS_TOKEN` com o token novo.
+- **Responder comentários (futuro):** gerar um token novo incluindo
+  `instagram_manage_comments` e trocar o secret. Não está incluído hoje, de
+  propósito (LGPD e Provimento 205/2021).
 - **Agendamento desligado:** o GitHub desliga agendamentos de repositórios sem
   movimento por 60 dias. A conferência semanal grava `status/token.json`
   justamente para isso não acontecer. Se acontecer, ele avisa por e-mail; basta
