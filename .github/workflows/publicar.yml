@@ -1,0 +1,32 @@
+name: Publicar no Instagram
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # a cada 15 min (o GitHub pode atrasar alguns minutos)
+  workflow_dispatch: {}      # botão "Run workflow" para rodar na hora
+
+# Nunca duas execuções ao mesmo tempo (evita post duplicado).
+concurrency:
+  group: publicar
+  cancel-in-progress: false
+
+permissions:
+  contents: write            # para mover os arquivos entre fila/publicados/erros
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar git
+        run: |
+          git config user.name "publicador-instagram"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Publicar posts no horário
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_ACCOUNT_ID: ${{ vars.IG_ACCOUNT_ID }}
+        run: python3 scripts/publicar.py

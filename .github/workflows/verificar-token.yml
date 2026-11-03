@@ -1,0 +1,44 @@
+name: Verificar token da Meta
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"     # toda segunda, 9h (Brasília)
+  workflow_dispatch: {}
+
+concurrency:
+  group: publicar            # não roda junto com a publicação (os dois fazem commit)
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Conferir token, permissões e prazo
+        id: conferir
+        continue-on-error: true
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_ACCOUNT_ID: ${{ vars.IG_ACCOUNT_ID }}
+          FB_APP_ID: ${{ vars.FB_APP_ID }}
+          FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
+        run: python3 scripts/verificar_token.py
+
+      # O commit semanal mantém o repositório ativo: sem movimento por 60 dias,
+      # o GitHub desliga os agendamentos.
+      - name: Gravar resultado
+        run: |
+          git config user.name "publicador-instagram"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add status
+          git diff --cached --quiet || git commit -m "Verificação semanal do token"
+          git push
+
+      - name: Falhar se houver problema (gera e-mail de alerta)
+        if: steps.conferir.outcome == 'failure'
+        run: exit 1
