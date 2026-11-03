@@ -7,7 +7,8 @@ import re
 import unicodedata
 
 LIMITE_LEGENDA = 2200      # caracteres (limite do Instagram)
-LIMITE_HASHTAGS = 30
+LIMITE_HASHTAGS = 5        # regra do escritório (03/11/2026); o Instagram aceita até 30
+HASHTAG_OBRIGATORIA = "#advogadotrabalhista"
 LIMITE_MENCOES = 20
 MIN_IMAGENS = 1
 MAX_IMAGENS = 10           # carrossel pela API: até 10 itens
@@ -65,9 +66,11 @@ def problemas_legenda(legenda: str, liberados=()) -> list[str]:
         return erros
     if len(legenda) > LIMITE_LEGENDA:
         erros.append(f"legenda com {len(legenda)} caracteres (máximo {LIMITE_LEGENDA})")
-    n_hash = len(re.findall(r"(?<!\w)#\w+", legenda))
-    if n_hash > LIMITE_HASHTAGS:
-        erros.append(f"{n_hash} hashtags (máximo {LIMITE_HASHTAGS})")
+    hashtags = [h.lower() for h in re.findall(r"(?<!\w)#\w+", legenda)]
+    if len(hashtags) > LIMITE_HASHTAGS:
+        erros.append(f"{len(hashtags)} hashtags (máximo {LIMITE_HASHTAGS})")
+    if HASHTAG_OBRIGATORIA not in hashtags:
+        erros.append(f"falta a hashtag obrigatória {HASHTAG_OBRIGATORIA}")
     n_menc = len(re.findall(r"(?<!\w)@[\w.]+", legenda))
     if n_menc > LIMITE_MENCOES:
         erros.append(f"{n_menc} menções @ (máximo {LIMITE_MENCOES})")
