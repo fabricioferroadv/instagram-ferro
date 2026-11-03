@@ -26,8 +26,10 @@ Dentro desta pasta (`Instagram - Carrosseis\publicador-github`):
 e `legenda.txt`, como hoje). Ou só me peça no chat: "agenda o carrossel X para
 quinta às 19h".
 
-**Horário:** o GitHub confere a fila a cada 15 minutos e às vezes atrasa um
-pouco. Conte com o post saindo **até ~20 min depois** do horário marcado.
+**Horário:** o agendamento pede a cada 15 min, mas na prática o GitHub roda a
+cada ~30–60 min. Conte com o post saindo **até ~1 h depois** do horário marcado
+(medido em 03/11/2026). Para horário exato, use **Actions → Publicar no Instagram
+→ Run workflow** na hora.
 
 ### O que acontece sozinho
 

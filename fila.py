@@ -167,7 +167,7 @@ def cmd_agendar(a):
     print(f"  quando:  {quando:%d/%m/%Y %H:%M} (horário de Brasília)")
     print(f"  imagens: {len(imagens)}  |  legenda: {len(legenda)} caracteres")
     print(f"  id:      {id_post}")
-    print("  obs.:    o GitHub confere a fila a cada 15 min — pode sair até ~20 min depois.")
+    print("  obs.:    o GitHub confere a fila periodicamente — pode sair até ~1 h depois.")
     if a.enviar:
         envia(f"Agendar: {id_post}")
 
