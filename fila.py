@@ -78,6 +78,18 @@ def recusa_passado(quando):
         sys.exit(f"Recusado: {quando:%d/%m/%Y %H:%M} já passou (ou é daqui a menos de 2 min).")
 
 
+def recusa_conflito(quando, ignorar_id=""):
+    """Não deixa dois posts saírem com menos de 1 h de diferença (o GitHub roda de hora em hora)."""
+    for arq in FILA.glob("*.json"):
+        p = json.loads(arq.read_text(encoding="utf-8-sig"))
+        if p.get("id") == ignorar_id:
+            continue
+        outro = datetime.fromisoformat(p["publicar_em"])
+        if abs(outro - quando) < timedelta(hours=1):
+            sys.exit(f"Recusado: já existe post na fila em {outro.astimezone(BRT):%d/%m/%Y %H:%M} "
+                     f"({p['id']}). Escolha outro horário (pelo menos 1 h de diferença).")
+
+
 def slug(texto):
     import unicodedata
     t = unicodedata.normalize("NFKD", texto)
@@ -174,6 +186,7 @@ def cmd_agendar(a):
 
     quando = le_quando(a.quando)
     recusa_passado(quando)
+    recusa_conflito(quando)
     id_post = f"{quando:%Y%m%d-%H%M}-{slug(origem.name)}"
     if (FILA / f"{id_post}.json").exists() or (PUBLICADOS / f"{id_post}.json").exists():
         sys.exit(f"Já existe um post com o id {id_post}.")
@@ -262,6 +275,7 @@ def cmd_reagendar(a):
                  "Se NÃO saiu, repita o comando com --ja-conferi.")
     quando = le_quando(a.quando)
     recusa_passado(quando)
+    recusa_conflito(quando, ignorar_id=post["id"])
     post["publicar_em"] = quando.isoformat(timespec="minutes")
     post["status"] = "agendado"
     post.pop("detalhe", None)
