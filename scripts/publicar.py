@@ -110,19 +110,45 @@ def url_publica(caminho_relativo):
     return f"https://raw.githubusercontent.com/{repo}/{ramo}/{urllib.parse.quote(caminho_relativo)}"
 
 
-def confere_url(url):
-    """A Meta só baixa se a URL for pública e for imagem. Testa antes."""
+def confere_url(url, video=False):
+    """A Meta só baixa se a URL for pública e do tipo certo. Testa antes."""
     req = urllib.request.Request(url, method="HEAD")
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
             tipo = r.headers.get("Content-Type", "")
     except urllib.error.HTTPError as e:
-        raise ErroMeta(f"imagem não está pública ({e.code}): {url}") from None
-    if not tipo.startswith("image/"):
-        raise ErroMeta(f"URL não devolve imagem (Content-Type: {tipo}): {url}")
+        raise ErroMeta(f"arquivo não está público ({e.code}): {url}") from None
+    # o GitHub serve .mp4 como application/octet-stream — a Meta aceita (testado em 05/11/2026)
+    ok = tipo.startswith(("video/", "application/octet-stream")) if video else tipo.startswith("image/")
+    if not ok:
+        raise ErroMeta(f"URL não devolve {'vídeo' if video else 'imagem'} (Content-Type: {tipo}): {url}")
+
+
+def publica_reel(post: dict) -> dict:
+    conta = os.environ["IG_ACCOUNT_ID"]
+    video = url_publica(post["video"])
+    capa = url_publica(post["capa"]) if post.get("capa") else ""
+    if SIMULAR:
+        print(f"   [simulação] publicaria o Reel: {video}" + (f"\n      capa: {capa}" if capa else ""))
+        return {"id": "SIMULADO", "permalink": ""}
+    confere_url(video, video=True)
+    dados = {"media_type": "REELS", "video_url": video, "caption": post["legenda"], "share_to_feed": "true"}
+    if capa:
+        confere_url(capa)
+        dados["cover_url"] = capa
+    r = _chamada("POST", f"{conta}/media", dados)
+    espera_pronto(r["id"], tentativas=80, intervalo=5)     # vídeo leva alguns minutos na Meta
+    pub = _chamada("POST", f"{conta}/media_publish", {"creation_id": r["id"]})
+    try:
+        link = _chamada("GET", pub["id"], {"fields": "permalink"}).get("permalink", "")
+    except ErroMeta:
+        link = ""
+    return {"id": pub["id"], "permalink": link}
 
 
 def publica(post: dict) -> dict:
+    if post.get("video"):
+        return publica_reel(post)
     conta = os.environ["IG_ACCOUNT_ID"]
     urls = [url_publica(p) for p in post["imagens"]]
     if SIMULAR:

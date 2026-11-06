@@ -25,6 +25,8 @@ sys.path.insert(0, str(RAIZ / "scripts"))
 import regras  # noqa: E402
 
 PRONTOS = RAIZ.parent / "PRONTOS PARA PUBLICAR"
+REELS = RAIZ.parent / "REELS PRONTOS"
+MAX_VIDEO = 95 * 1024 * 1024          # o GitHub recusa arquivos acima de 100 MB
 FILA, PUBLICADOS, ERROS, MIDIA = (RAIZ / p for p in ("fila", "publicados", "erros", "midia"))
 BRT = timezone(timedelta(hours=-3))   # Brasil sem horário de verão desde 2019
 
@@ -103,6 +105,43 @@ def confere_imagens(arquivos):
     return erros
 
 
+def confere_imagens_capa(arq: Path):
+    """A capa do Reel é vertical (9:16), então só confere tamanho e formato JPEG."""
+    erros = []
+    if arq.stat().st_size > regras.MAX_BYTES_IMAGEM:
+        erros.append("capa.jpg: maior que 8 MB")
+    try:
+        from PIL import Image
+        with Image.open(arq) as im:
+            if im.format != "JPEG":
+                erros.append(f"capa.jpg: não é JPEG ({im.format})")
+    except ImportError:
+        pass
+    return erros
+
+
+def confere_video(arq: Path):
+    """Reel: até 95 MB, vertical 9:16, entre 3 s e 15 min, H.264."""
+    erros = []
+    if arq.stat().st_size > MAX_VIDEO:
+        erros.append(f"{arq.name}: maior que 95 MB (limite do GitHub)")
+    try:
+        r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                            "stream=width,height,codec_name:format=duration", "-of", "json", str(arq)],
+                           capture_output=True, text=True, check=True)
+        info = json.loads(r.stdout)
+        s, dur = info["streams"][0], float(info["format"]["duration"])
+        if not (3 <= dur <= 900):
+            erros.append(f"duração {dur:.0f} s (Reel: de 3 s a 15 min)")
+        if abs(s["width"] / s["height"] - 9 / 16) > 0.02:
+            erros.append(f"proporção {s['width']}x{s['height']} (Reel precisa ser vertical 9:16)")
+        if s.get("codec_name") != "h264":
+            erros.append(f"codec {s.get('codec_name')} (use H.264)")
+    except (FileNotFoundError, subprocess.CalledProcessError, KeyError, ValueError):
+        print("Aviso: não consegui conferir o vídeo com o ffprobe.")
+    return erros
+
+
 def acha(id_post):
     for pasta in (FILA, ERROS):
         arq = pasta / f"{id_post}.json"
@@ -119,10 +158,15 @@ def cmd_agendar(a):
     if not origem.is_dir():
         origem = PRONTOS / a.pasta
     if not origem.is_dir():
-        sys.exit(f"Pasta não encontrada: {a.pasta}\n(procurei também em {PRONTOS})")
+        origem = REELS / a.pasta
+    if not origem.is_dir():
+        sys.exit(f"Pasta não encontrada: {a.pasta}\n(procurei também em {PRONTOS} e {REELS})")
 
-    imagens = sorted(p for p in origem.iterdir()
-                     if re.fullmatch(r"\d{2}\.jpe?g", p.name, re.IGNORECASE))
+    video = origem / "reel.mp4"
+    eh_reel = video.exists()
+    capa = origem / "capa.jpg"
+    imagens = [] if eh_reel else sorted(p for p in origem.iterdir()
+                                        if re.fullmatch(r"\d{2}\.jpe?g", p.name, re.IGNORECASE))
     leg = origem / "legenda.txt"
     if not leg.exists():
         sys.exit(f"Falta legenda.txt em {origem}")
@@ -145,8 +189,15 @@ def cmd_agendar(a):
         "origem": origem.name,
         "status": "agendado",
     }
+    if eh_reel:
+        post["tipo"] = "reel"
+        post["video"] = f"midia/{id_post}/reel.mp4"
+        if capa.exists():
+            post["capa"] = f"midia/{id_post}/capa.jpg"
 
-    erros = regras.problemas_post(post) + confere_imagens(imagens)
+    erros = regras.problemas_post(post) + (
+        confere_video(video) + (confere_imagens_capa(capa) if capa.exists() else []) if eh_reel
+        else confere_imagens(imagens))
     if erros:
         print("NÃO AGENDADO — corrija antes:")
         for e in erros:
@@ -159,13 +210,18 @@ def cmd_agendar(a):
     destino.mkdir(parents=True, exist_ok=True)
     for p, rel in zip(imagens, post["imagens"]):
         shutil.copy2(p, RAIZ / rel)
+    if eh_reel:
+        shutil.copy2(video, RAIZ / post["video"])
+        if post.get("capa"):
+            shutil.copy2(capa, RAIZ / post["capa"])
     FILA.mkdir(exist_ok=True)
     (FILA / f"{id_post}.json").write_text(json.dumps(post, ensure_ascii=False, indent=2),
                                           encoding="utf-8")
 
-    print(f"Agendado: {post['titulo']}")
+    print(f"Agendado: {post['titulo']}{'  (REEL)' if eh_reel else ''}")
     print(f"  quando:  {quando:%d/%m/%Y %H:%M} (horário de Brasília)")
-    print(f"  imagens: {len(imagens)}  |  legenda: {len(legenda)} caracteres")
+    midia_txt = (f"vídeo {video.stat().st_size // 1024 // 1024} MB" if eh_reel else f"imagens: {len(imagens)}")
+    print(f"  {midia_txt}  |  legenda: {len(legenda)} caracteres")
     print(f"  id:      {id_post}")
     print("  obs.:    o GitHub confere a fila periodicamente — pode sair até ~1 h depois.")
     if a.enviar:

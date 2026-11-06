@@ -87,7 +87,11 @@ def problemas_post(post: dict) -> list[str]:
     """Confere a estrutura do arquivo da fila (sem olhar os pixels)."""
     erros = []
     imagens = post.get("imagens") or []
-    if not (MIN_IMAGENS <= len(imagens) <= MAX_IMAGENS):
+    if post.get("video"):                       # Reel: um vídeo .mp4 (+ capa opcional em JPEG)
+        if not post["video"].lower().endswith(".mp4"):
+            erros.append("o vídeo do Reel precisa ser .mp4")
+        imagens = [post["capa"]] if post.get("capa") else []
+    elif not (MIN_IMAGENS <= len(imagens) <= MAX_IMAGENS):
         erros.append(f"{len(imagens)} imagens (precisa de {MIN_IMAGENS} a {MAX_IMAGENS})")
     for img in imagens:
         if not img.lower().endswith((".jpg", ".jpeg")):
