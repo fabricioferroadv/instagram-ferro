@@ -180,6 +180,41 @@ def publica(post: dict) -> dict:
     return {"id": pub["id"], "permalink": link}
 
 
+def _normaliza(texto):
+    return " ".join((texto or "").split())
+
+
+def ja_no_instagram(post: dict):
+    """Procura o post entre os últimos do perfil, pela legenda.
+
+    Devolve {"id", "permalink"} se já saiu, None se não saiu.
+    Levanta ErroMeta se NÃO conseguiu conferir — aí ninguém publica.
+    """
+    if SIMULAR:
+        print("   [simulação] conferiria no Instagram se o post já saiu")
+        return None
+    alvo = _normaliza(post["legenda"])
+    r = _chamada("GET", f"{os.environ['IG_ACCOUNT_ID']}/media",
+                 {"fields": "id,caption,permalink,timestamp", "limit": "25"})
+    if "data" not in r:
+        raise ErroMeta("a Meta não devolveu a lista de posts do perfil")
+    for m in r["data"]:
+        if _normaliza(m.get("caption")) == alvo:
+            return {"id": m["id"], "permalink": m.get("permalink", "")}
+    return None
+
+
+def marca_ja_publicado(arquivo: Path, post: dict, achado: dict, nome: str):
+    post["status"] = "publicado"
+    post["publicado_em"] = post.get("publicado_em") or agora().astimezone(BRT).isoformat(timespec="minutes")
+    post["media_id"] = achado["id"]
+    post["link"] = achado["permalink"]
+    post["detalhe"] = "já estava no Instagram — não publiquei de novo"
+    move(arquivo, PUBLICADOS, post)
+    salva_estado(f"Já estava publicado: {nome}")
+    print(f"   já estava no Instagram: {achado['permalink'] or achado['id']} — não publiquei de novo")
+
+
 # ---------------------------------------------------------------- laço
 
 def agora():
@@ -201,13 +236,24 @@ def main():
     git("pull", "--rebase", "--quiet")
 
     # 1. Algo ficou preso em "publicando"? A execução anterior caiu no meio.
+    #    Se ele já está no perfil, só registra como publicado; senão vai para
+    #    erros (nunca reenvia sozinho).
+    presos = False
     for preso in sorted(PUBLICANDO.glob("*.json")):
         post = json.loads(preso.read_text(encoding="utf-8-sig"))
+        try:
+            achado = ja_no_instagram(post)
+        except ErroMeta:
+            achado = None
+        if achado:
+            marca_ja_publicado(preso, post, achado, preso.name)
+            continue
         post["detalhe"] = ("A execução caiu durante o envio. CONFIRA no Instagram se o post "
                            "saiu antes de agendar de novo.")
         move(preso, ERROS, post)
         falhas.append(f"{preso.name}: preso em 'publicando' — conferir no Instagram")
-    if falhas:
+        presos = True
+    if presos:
         salva_estado("Posts presos em 'publicando' movidos para erros")
 
     # 2. Posts da fila cujo horário chegou, do mais antigo para o mais novo.
@@ -243,7 +289,19 @@ def main():
             falhas.append(f"{nome}: {post['detalhe']}")
             continue
 
-        # Antiduplicata: marca "publicando" e grava ANTES de falar com a Meta.
+        # Antiduplicata 1: confere no próprio Instagram se já saiu.
+        #   Não deu para conferir → deixa na fila e tenta na próxima execução.
+        try:
+            achado = ja_no_instagram(post)
+        except ErroMeta as e:
+            print(f"   não consegui conferir no Instagram ({e}) — fica na fila, tento de novo")
+            falhas.append(f"{nome}: não consegui conferir no Instagram, não publiquei ({e})")
+            continue
+        if achado:
+            marca_ja_publicado(arq, post, achado, nome)
+            continue
+
+        # Antiduplicata 2: marca "publicando" e grava ANTES de falar com a Meta.
         post["status"] = "publicando"
         em_envio = move(arq, PUBLICANDO, post)
         salva_estado(f"Publicando: {nome}")

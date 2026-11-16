@@ -31,6 +31,14 @@ cada ~30–60 min. Conte com o post saindo **até ~1 h depois** do horário marc
 (medido em 03/11/2026). Para horário exato, use **Actions → Publicar no Instagram
 → Run workflow** na hora.
 
+**Disparador do notebook (desde 16/11/2026):** o relógio do GitHub às vezes passa
+horas sem rodar. A tarefa do Windows **"Ferro - Disparador do publicador"** roda a
+cada 15 min (:01, :16, :31, :46), escondida, e executa `scripts/disparador_local.py`:
+se a fila **no GitHub** tem post vencido e não há execução rodando, aciona o
+publicador. Se não conseguir conferir qualquer uma dessas coisas, **não dispara**.
+Registro em `scripts/disparador.log` (só local). Teste sem disparar:
+`python scripts/disparador_local.py --simular`.
+
 ### O que acontece sozinho
 
 | Situação | O que o sistema faz |
@@ -40,7 +48,8 @@ cada ~30–60 min. Conte com o post saindo **até ~1 h depois** do horário marc
 | Data no passado | Recusa ao agendar |
 | O horário passou há mais de 3 h (ex.: GitHub fora do ar) | **Não publica fora de hora**: move para `erros/` e avisa |
 | Meta recusou | Move para `erros/` com o motivo e avisa |
-| A execução caiu no meio do envio | Move para `erros/` com "CONFIRA no Instagram" — nunca reenvia sozinho |
+| Antes de publicar | Puxa a fila mais recente e **confere no perfil** (pela legenda, últimos 25 posts) se o post já saiu. Se já saiu, só registra em `publicados/`. Se não conseguir conferir, **não publica** e tenta na próxima execução |
+| A execução caiu no meio do envio | Confere no perfil: se saiu, registra em `publicados/`; se não, move para `erros/` com "CONFIRA no Instagram" — nunca reenvia sozinho |
 | Toda segunda | Confere o token e o prazo de acesso da Meta. Avisa 21 dias antes de vencer |
 
 **Avisos:** quando algo dá errado, o GitHub manda **e-mail** para você

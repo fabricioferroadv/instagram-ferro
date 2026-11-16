@@ -4,3 +4,4 @@
 *.token
 
 .claude/
+scripts/disparador.log
