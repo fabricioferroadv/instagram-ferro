@@ -195,6 +195,11 @@ def duracao(td):
 def main():
     falhas = []
 
+    # 0. Pega o estado mais recente. Uma execução que ficou na fila do GitHub
+    #    esperando outra terminar começa com uma cópia ANTIGA do repositório —
+    #    sem isto ela veria como pendente um post que a anterior já publicou.
+    git("pull", "--rebase", "--quiet")
+
     # 1. Algo ficou preso em "publicando"? A execução anterior caiu no meio.
     for preso in sorted(PUBLICANDO.glob("*.json")):
         post = json.loads(preso.read_text(encoding="utf-8-sig"))
