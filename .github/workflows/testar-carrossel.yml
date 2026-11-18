@@ -1,0 +1,23 @@
+name: Testar carrossel (nao publica)
+
+on:
+  workflow_dispatch:
+    inputs:
+      arquivos:
+        description: "Imagens no repositório, separadas por espaço"
+        default: "midia/_teste/34-01.jpg midia/_teste/34-02.jpg"
+
+permissions:
+  contents: read
+
+jobs:
+  testar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Criar contêineres do carrossel e esperar (sem publicar)
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_ACCOUNT_ID: ${{ vars.IG_ACCOUNT_ID }}
+        run: python3 scripts/testar_carrossel.py ${{ inputs.arquivos }}
