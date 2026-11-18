@@ -98,7 +98,7 @@ def slug(texto):
 
 
 def confere_imagens(arquivos):
-    erros = []
+    erros, tamanhos = [], set()
     try:
         from PIL import Image
     except ImportError:
@@ -112,8 +112,12 @@ def confere_imagens(arquivos):
                 if im.format != "JPEG":
                     erros.append(f"{a.name}: não é JPEG de verdade ({im.format})")
                 prop = im.width / im.height
-                if not (0.8 - 0.01 <= prop <= 1.91 + 0.01):
-                    erros.append(f"{a.name}: proporção {im.width}x{im.height} fora de 4:5 a 1,91:1")
+                # 3:4 (1080x1440) é o formato novo do Instagram; testado na API da Meta em 18/11/2026
+                if not (0.75 - 0.01 <= prop <= 1.91 + 0.01):
+                    erros.append(f"{a.name}: proporção {im.width}x{im.height} fora de 3:4 a 1,91:1")
+                tamanhos.add((im.width, im.height))
+    if len(tamanhos) > 1:   # a Meta corta todos os slides pelo formato do primeiro
+        erros.append("os slides não têm todos o mesmo tamanho: " + ", ".join(f"{w}x{h}" for w, h in sorted(tamanhos)))
     return erros
 
 
